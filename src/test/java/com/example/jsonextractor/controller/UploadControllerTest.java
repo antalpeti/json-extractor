@@ -1,87 +1,112 @@
 package com.example.jsonextractor.controller;
 
-import com.example.jsonextractor.model.ExtractionRequest;
-import com.example.jsonextractor.service.ExtractionTransformService;
 import com.example.jsonextractor.service.JsonDataStore;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseEntity;
-import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.http.MediaType;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
 
-class UploadControllerTest {
+@ExtendWith(MockitoExtension.class)
+@DisplayName("UploadController")
+class UploadControllerTest extends UploadControllerTestHelper {
 
-    private UploadController controller;
-    private JsonDataStore jsonDataStore;
+    private final JsonDataStore jsonDataStore = createJsonDataStore();
+    private final UploadController controller = createController(jsonDataStore);
 
-    @BeforeEach
-    void setUp() {
-        jsonDataStore = new JsonDataStore();
-        controller = new UploadController(jsonDataStore, new ObjectMapper(), new ExtractionTransformService());
+    @Test
+    @DisplayName("upload with JSON array stores all records and returns field names from first record")
+    void testUploadArrayStoresRecordsAndReturnsFieldNames() {
+        final var file = createMultipartFile(ARRAY_JSON_ONE_RECORD);
+
+        final var response = controller.upload(file);
+
+        assertTrue(response.getStatusCode().is2xxSuccessful());
+        assertEquals(List.of(FIELD_NAME, FIELD_VALUE), response.getBody());
+        assertTrue(jsonDataStore.hasData());
+        assertEquals(1, jsonDataStore.getData().size());
     }
 
     @Test
-    void uploadReturnsTopLevelFieldNamesAndStoresRecords() {
-        MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "sample.json",
-                "application/json",
-                "[{\"name\":\"Test\",\"value\":\"1\"}]".getBytes(StandardCharsets.UTF_8));
+    @DisplayName("upload with single JSON object stores one record and returns field names from object")
+    void testUploadSingleJsonObjectStoresOneRecordAndReturnsFieldNames() {
+        final var file = createMultipartFile(SINGLE_OBJECT_JSON);
 
-        ResponseEntity<?> response = controller.upload(file);
+        final var response = controller.upload(file);
 
-        assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
-        assertThat(response.getBody()).isEqualTo(List.of("name", "value"));
-        assertThat(jsonDataStore.hasData()).isTrue();
-        assertThat(jsonDataStore.getData()).hasSize(1);
+        assertTrue(response.getStatusCode().is2xxSuccessful());
+        assertEquals(List.of(FIELD_NAME, FIELD_VALUE), response.getBody());
+        assertTrue(jsonDataStore.hasData());
+        assertEquals(1, jsonDataStore.getData().size());
     }
 
     @Test
-    void extractAppliesTransformOptionsAndReturnsTabSeparatedText() {
-        MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "sample.json",
-                "application/json",
-                "[{\"left\":\"  Test1,. \",\"right\":\" Value2.,\"}]".getBytes(StandardCharsets.UTF_8));
-        controller.upload(file);
+    @DisplayName("upload with invalid JSON returns bad request with error message starting with expected prefix")
+    void testUploadInvalidJsonReturnsBadRequestWithExpectedMessagePrefix() {
+        final var file = createMultipartFile(INVALID_JSON);
 
-        ExtractionRequest request = new ExtractionRequest();
-        request.setFields(List.of("left", "right"));
-        request.setTrimWhitespace(true);
-        request.setLowercaseFirstLetter(true);
-        request.setStripCharsEnabled(true);
-        request.setStripChars(",;:.!?-");
+        final var response = controller.upload(file);
 
-        ResponseEntity<byte[]> response = controller.extract(request, false);
-
-        assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
-        assertThat(response.getBody()).isNotNull();
-        assertThat(new String(response.getBody(), StandardCharsets.UTF_8)).isEqualTo("test1\tvalue2\n");
+        assertTrue(response.getStatusCode().is4xxClientError());
+        assertInstanceOf(String.class, response.getBody());
+        assertTrue(((String) response.getBody()).startsWith(INVALID_JSON_ERROR_PREFIX));
     }
 
     @Test
-    void extractWithDownloadSetsAttachmentHeader() {
-        MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "sample.json",
-                "application/json",
-                "[{\"field\":\"data\"}]".getBytes(StandardCharsets.UTF_8));
-        controller.upload(file);
+    @DisplayName("extract with transform options returns tab-separated text with transformed values")
+    void testExtractAppliesTransformOptionsAndReturnsTabSeparatedText() {
+        controller.upload(createMultipartFile(TRANSFORM_JSON));
+        final var request = createTransformRequest();
 
-        ExtractionRequest request = new ExtractionRequest();
-        request.setFields(List.of("field"));
+        final var response = controller.extract(request, false);
 
-        ResponseEntity<byte[]> response = controller.extract(request, true);
+        assertTrue(response.getStatusCode().is2xxSuccessful());
+        assertNotNull(response.getBody());
+        assertEquals(EXPECTED_TRANSFORM_BODY, new String(response.getBody(), StandardCharsets.UTF_8));
+    }
 
-        assertThat(response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
-                .isEqualTo("form-data; name=\"attachment\"; filename=\"extracted.txt\"");
+    @Test
+    @DisplayName("extract with download false returns text/plain content type and empty string for missing fields")
+    void testExtractWithDownloadFalseReturnsTextPlainAndEmptyStringForMissingFields() {
+        controller.upload(createMultipartFile(ARRAY_JSON_ONE_RECORD));
+        final var request = createRequestWithFields(List.of(FIELD_MISSING));
+
+        final var response = controller.extract(request, false);
+
+        assertTrue(response.getStatusCode().is2xxSuccessful());
+        assertEquals(MediaType.TEXT_PLAIN, response.getHeaders().getContentType());
+        assertNotNull(response.getBody());
+        assertEquals(EMPTY_ROW_BODY, new String(response.getBody(), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    @DisplayName("extract with empty data store returns empty payload")
+    void testExtractWithEmptyDataStoreReturnsEmptyPayload() {
+        final var request = createRequestWithFields(List.of(FIELD_NAME));
+
+        final var response = controller.extract(request, false);
+
+        assertTrue(response.getStatusCode().is2xxSuccessful());
+        assertNotNull(response.getBody());
+        assertEquals(0, response.getBody().length);
+    }
+
+    @Test
+    @DisplayName("extract with download true sets attachment Content-Disposition header")
+    void testExtractWithDownloadSetsAttachmentHeader() {
+        controller.upload(createMultipartFile(DOWNLOAD_JSON));
+        final var request = createRequestWithFields(List.of(FIELD_FIELD));
+
+        final var response = controller.extract(request, true);
+
+        final var header = response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION);
+        assertNotNull(header);
+        assertTrue(header.matches(CONTENT_DISPOSITION_PATTERN));
     }
 }
-
-

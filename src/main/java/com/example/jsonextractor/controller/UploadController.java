@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -23,6 +25,9 @@ import java.util.Map;
 
 @Controller
 public class UploadController {
+
+    private static final DateTimeFormatter FILENAME_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
     private final JsonDataStore jsonDataStore;
     private final ObjectMapper objectMapper;
@@ -92,9 +97,10 @@ public class UploadController {
         byte[] content = sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
 
         if (download) {
+            final var filename = "extracted_" + LocalDateTime.now().format(FILENAME_FORMATTER) + ".txt";
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.TEXT_PLAIN);
-            headers.setContentDispositionFormData("attachment", "extracted.txt");
+            headers.setContentDispositionFormData("attachment", filename);
             return ResponseEntity.ok().headers(headers).body(content);
         } else {
             return ResponseEntity.ok()
