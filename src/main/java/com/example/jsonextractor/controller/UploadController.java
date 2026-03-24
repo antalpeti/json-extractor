@@ -37,27 +37,31 @@ public class UploadController {
     }
 
     @PostMapping("/upload")
-    public ResponseEntity<List<String>> upload(@RequestParam("file") MultipartFile file) throws IOException {
-        JsonNode rootNode = objectMapper.readTree(file.getInputStream());
+    public ResponseEntity<?> upload(@RequestParam("file") MultipartFile file) {
+        try {
+            JsonNode rootNode = objectMapper.readTree(file.getInputStream());
 
-        List<JsonNode> records = new ArrayList<>();
-        if (rootNode.isArray()) {
-            rootNode.forEach(records::add);
-        } else {
-            records.add(rootNode);
-        }
-
-        jsonDataStore.setData(records);
-
-        List<String> fieldNames = new ArrayList<>();
-        if (!records.isEmpty()) {
-            Iterator<Map.Entry<String, JsonNode>> fields = records.get(0).fields();
-            while (fields.hasNext()) {
-                fieldNames.add(fields.next().getKey());
+            List<JsonNode> records = new ArrayList<>();
+            if (rootNode.isArray()) {
+                rootNode.forEach(records::add);
+            } else {
+                records.add(rootNode);
             }
-        }
 
-        return ResponseEntity.ok(fieldNames);
+            jsonDataStore.setData(records);
+
+            List<String> fieldNames = new ArrayList<>();
+            if (!records.isEmpty()) {
+                Iterator<Map.Entry<String, JsonNode>> fieldEntries = records.get(0).fields();
+                while (fieldEntries.hasNext()) {
+                    fieldNames.add(fieldEntries.next().getKey());
+                }
+            }
+
+            return ResponseEntity.ok(fieldNames);
+        } catch (IOException e) {
+            return ResponseEntity.badRequest().body("Invalid JSON file: " + e.getMessage());
+        }
     }
 
     @PostMapping("/extract")

@@ -5,14 +5,15 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 @Component
 public class JsonDataStore {
 
-    private List<JsonNode> data = new ArrayList<>();
+    private volatile List<JsonNode> data = new CopyOnWriteArrayList<>();
 
-    public void setData(List<JsonNode> data) {
-        this.data = data;
+    public synchronized void setData(List<JsonNode> data) {
+        this.data = new CopyOnWriteArrayList<>(data);
     }
 
     public List<JsonNode> getData() {
