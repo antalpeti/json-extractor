@@ -7,8 +7,8 @@ public class ExtractionRequest {
     private List<String> fields;
     private boolean lowercaseFirstLetter;
     private boolean trimWhitespace;
-    private boolean removeTrailingDots;
-    private boolean removeTrailingCommas;
+    private boolean stripCharsEnabled;
+    private String stripChars;
 
     public List<String> getFields() {
         return fields;
@@ -34,20 +34,20 @@ public class ExtractionRequest {
         this.trimWhitespace = trimWhitespace;
     }
 
-    public boolean isRemoveTrailingDots() {
-        return removeTrailingDots;
+    public boolean isStripCharsEnabled() {
+        return stripCharsEnabled;
     }
 
-    public void setRemoveTrailingDots(boolean removeTrailingDots) {
-        this.removeTrailingDots = removeTrailingDots;
+    public void setStripCharsEnabled(boolean stripCharsEnabled) {
+        this.stripCharsEnabled = stripCharsEnabled;
     }
 
-    public boolean isRemoveTrailingCommas() {
-        return removeTrailingCommas;
+    public String getStripChars() {
+        return stripChars;
     }
 
-    public void setRemoveTrailingCommas(boolean removeTrailingCommas) {
-        this.removeTrailingCommas = removeTrailingCommas;
+    public void setStripChars(String stripChars) {
+        this.stripChars = stripChars;
     }
 
 }

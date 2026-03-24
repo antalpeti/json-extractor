@@ -1,83 +1,163 @@
 package com.example.jsonextractor.service;
 
-import com.example.jsonextractor.model.ExtractionRequest;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class ExtractionTransformServiceTest {
+@ExtendWith(MockitoExtension.class)
+@DisplayName("ExtractionTransformService")
+class ExtractionTransformServiceTest extends ExtractionTransformServiceHelper {
 
-    private final ExtractionTransformService service = new ExtractionTransformService();
+    private final ExtractionTransformService service = createService();
 
     @Test
-    void transformReturnsOriginalWhenNoOptionsEnabled() {
-        ExtractionRequest request = new ExtractionRequest();
+    @DisplayName("transform returns empty string when value is null")
+    void testTransformReturnsEmptyStringWhenValueIsNull() {
+        final var request = createEmptyRequest();
 
-        String result = service.transform("Test Value.", request);
+        final var result = service.transform(null, request);
 
-        assertThat(result).isEqualTo("Test Value.");
+        assertEquals(EMPTY_STRING, result);
     }
 
     @Test
-    void transformLowercasesFirstCharacterWhenEnabled() {
-        ExtractionRequest request = new ExtractionRequest();
-        request.setLowercaseFirstLetter(true);
+    @DisplayName("transform returns value unchanged when request is null")
+    void testTransformReturnsValueUnchangedWhenRequestIsNull() {
+        final var result = service.transform(CLEAN_VALUE, null);
 
-        String result = service.transform("Test Tabulator Teszt", request);
-
-        assertThat(result).isEqualTo("test Tabulator Teszt");
+        assertEquals(CLEAN_VALUE, result);
     }
 
     @Test
-    void transformTrimsWhitespaceWhenEnabled() {
-        ExtractionRequest request = new ExtractionRequest();
-        request.setTrimWhitespace(true);
+    @DisplayName("transform returns value unchanged when no options are enabled")
+    void testTransformReturnsValueUnchangedWhenNoOptionsEnabled() {
+        final var request = createEmptyRequest();
 
-        String result = service.transform("   Test Tabulator Teszt   ", request);
+        final var result = service.transform(VALUE_WITH_TRAILING_STRIP_CHAR, request);
 
-        assertThat(result).isEqualTo("Test Tabulator Teszt");
+        assertEquals(VALUE_WITH_TRAILING_STRIP_CHAR, result);
     }
 
     @Test
-    void transformRemovesTrailingDotsWhenEnabled() {
-        ExtractionRequest request = new ExtractionRequest();
-        request.setRemoveTrailingDots(true);
+    @DisplayName("transform trims leading and trailing whitespace when trimWhitespace is enabled")
+    void testTransformTrimsLeadingAndTrailingWhitespaceWhenTrimEnabled() {
+        final var request = createRequestWithTrimWhitespace();
 
-        assertThat(service.transform("Test1.", request)).isEqualTo("Test1");
-        assertThat(service.transform("Test2..", request)).isEqualTo("Test2");
+        final var result = service.transform(VALUE_WITH_WHITESPACE, request);
+
+        assertEquals(TRIMMED_VALUE, result);
     }
 
     @Test
-    void transformRemovesTrailingCommasWhenEnabled() {
-        ExtractionRequest request = new ExtractionRequest();
-        request.setRemoveTrailingCommas(true);
+    @DisplayName("transform lowercases first letter when lowercaseFirstLetter is enabled")
+    void testTransformLowercasesFirstLetterWhenEnabled() {
+        final var request = createRequestWithLowercaseFirstLetter();
 
-        assertThat(service.transform("Test1,", request)).isEqualTo("Test1");
-        assertThat(service.transform("Test2,,", request)).isEqualTo("Test2");
+        final var result = service.transform(UPPERCASE_FIRST_VALUE, request);
+
+        assertEquals(LOWERCASE_FIRST_VALUE, result);
     }
 
     @Test
-    void transformRemovesMixedTrailingDotsAndCommasWhenBothEnabled() {
-        ExtractionRequest request = new ExtractionRequest();
-        request.setRemoveTrailingDots(true);
-        request.setRemoveTrailingCommas(true);
+    @DisplayName("transform skips lowercasing when value is empty and lowercaseFirstLetter is enabled")
+    void testTransformSkipsLowercasingWhenValueIsEmptyAndLowercaseEnabled() {
+        final var request = createRequestWithLowercaseFirstLetter();
 
-        assertThat(service.transform("Test1,.", request)).isEqualTo("Test1");
-        assertThat(service.transform("Test2.,", request)).isEqualTo("Test2");
-        assertThat(service.transform("Test3,.,.,", request)).isEqualTo("Test3");
+        final var result = service.transform(EMPTY_STRING, request);
+
+        assertEquals(EMPTY_STRING, result);
     }
 
     @Test
-    void transformAppliesAllRulesInConfiguredOrder() {
-        ExtractionRequest request = new ExtractionRequest();
-        request.setTrimWhitespace(true);
-        request.setLowercaseFirstLetter(true);
-        request.setRemoveTrailingDots(true);
-        request.setRemoveTrailingCommas(true);
+    @DisplayName("transform strips trailing strip characters when stripChars is enabled")
+    void testTransformStripsTrailingStripCharsWhenEnabled() {
+        final var request = createRequestWithStripCharsEnabled(STRIP_CHARS_PUNCTUATION);
 
-        String result = service.transform("   Test1,.   ", request);
+        final var result = service.transform(VALUE_WITH_TRAILING_STRIP_CHAR, request);
 
-        assertThat(result).isEqualTo("test1");
+        assertEquals(CLEAN_VALUE, result);
+    }
+
+    @Test
+    @DisplayName("transform strips leading strip characters when stripChars is enabled")
+    void testTransformStripsLeadingStripCharsWhenEnabled() {
+        final var request = createRequestWithStripCharsEnabled(STRIP_CHARS_PUNCTUATION);
+
+        final var result = service.transform(VALUE_WITH_LEADING_STRIP_CHAR, request);
+
+        assertEquals(CLEAN_VALUE, result);
+    }
+
+    @Test
+    @DisplayName("transform strips characters from both ends when stripChars is enabled")
+    void testTransformStripsCharactersFromBothEndsWhenEnabled() {
+        final var request = createRequestWithStripCharsEnabled(STRIP_CHARS_PUNCTUATION);
+
+        final var result = service.transform(VALUE_WITH_BOTH_ENDS_STRIP_CHARS, request);
+
+        assertEquals(CLEAN_VALUE, result);
+    }
+
+    @Test
+    @DisplayName("transform strips multiple consecutive strip characters from both ends when stripChars is enabled")
+    void testTransformStripsMultipleConsecutiveStripCharsFromBothEndsWhenEnabled() {
+        final var request = createRequestWithStripCharsEnabled(STRIP_CHARS_PUNCTUATION);
+
+        final var result = service.transform(VALUE_WITH_MULTIPLE_CONSECUTIVE_STRIP_CHARS, request);
+
+        assertEquals(CLEAN_VALUE, result);
+    }
+
+    @Test
+    @DisplayName("transform returns empty string when all characters match strip characters")
+    void testTransformReturnsEmptyStringWhenAllCharsMatchStripChars() {
+        final var request = createRequestWithStripCharsEnabled(STRIP_CHARS_PUNCTUATION);
+
+        final var result = service.transform(VALUE_ENTIRELY_OF_STRIP_CHARS, request);
+
+        assertEquals(EMPTY_STRING, result);
+    }
+
+    @Test
+    @DisplayName("transform does not strip when stripCharsEnabled is false")
+    void testTransformDoesNotStripWhenStripCharsDisabled() {
+        final var request = createRequestWithStripCharsDisabled(STRIP_CHARS_PUNCTUATION);
+
+        final var result = service.transform(VALUE_WITH_TRAILING_STRIP_CHAR, request);
+
+        assertEquals(VALUE_WITH_TRAILING_STRIP_CHAR, result);
+    }
+
+    @Test
+    @DisplayName("transform does not strip when stripChars is null")
+    void testTransformDoesNotStripWhenStripCharsIsNull() {
+        final var request = createRequestWithStripCharsEnabled(null);
+
+        final var result = service.transform(VALUE_WITH_TRAILING_STRIP_CHAR, request);
+
+        assertEquals(VALUE_WITH_TRAILING_STRIP_CHAR, result);
+    }
+
+    @Test
+    @DisplayName("transform does not strip when stripChars is empty string")
+    void testTransformDoesNotStripWhenStripCharsIsEmpty() {
+        final var request = createRequestWithStripCharsEnabled(EMPTY_STRING);
+
+        final var result = service.transform(VALUE_WITH_TRAILING_STRIP_CHAR, request);
+
+        assertEquals(VALUE_WITH_TRAILING_STRIP_CHAR, result);
+    }
+
+    @Test
+    @DisplayName("transform applies trim, lowercase, and strip in order when all options are enabled")
+    void testTransformAppliesAllOptionsInOrder() {
+        final var request = createRequestWithAllOptions(STRIP_CHARS_PUNCTUATION);
+
+        final var result = service.transform(ALL_OPTIONS_INPUT, request);
+
+        assertEquals(ALL_OPTIONS_EXPECTED, result);
     }
 }
-

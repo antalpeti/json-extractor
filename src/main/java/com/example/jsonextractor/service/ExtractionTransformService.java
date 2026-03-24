@@ -19,32 +19,27 @@ public class ExtractionTransformService {
             transformed = transformed.substring(0, 1).toLowerCase(Locale.ROOT) + transformed.substring(1);
         }
 
-        if (request != null && (request.isRemoveTrailingDots() || request.isRemoveTrailingCommas())) {
-            transformed = stripTrailingPunctuation(
-                    transformed,
-                    request.isRemoveTrailingDots(),
-                    request.isRemoveTrailingCommas());
+        if (request != null && request.isStripCharsEnabled()
+                && request.getStripChars() != null && !request.getStripChars().isEmpty()) {
+            transformed = stripBothEnds(transformed, request.getStripChars());
         }
 
         return transformed;
     }
 
-    private String stripTrailingPunctuation(String value, boolean removeDots, boolean removeCommas) {
+    private String stripBothEnds(String value, String stripChars) {
+        int start = 0;
         int end = value.length();
 
-        while (end > 0) {
-            char last = value.charAt(end - 1);
-            boolean shouldStripDot = removeDots && last == '.';
-            boolean shouldStripComma = removeCommas && last == ',';
+        while (start < end && stripChars.indexOf(value.charAt(start)) >= 0) {
+            start++;
+        }
 
-            if (!shouldStripDot && !shouldStripComma) {
-                break;
-            }
-
+        while (end > start && stripChars.indexOf(value.charAt(end - 1)) >= 0) {
             end--;
         }
 
-        return value.substring(0, end);
+        return value.substring(start, end);
     }
 }
 

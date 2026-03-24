@@ -50,8 +50,8 @@ class UploadControllerIntegrationTest {
                   "fields": ["first", "second"],
                   "trimWhitespace": true,
                   "lowercaseFirstLetter": true,
-                  "removeTrailingDots": true,
-                  "removeTrailingCommas": true
+                  "stripCharsEnabled": true,
+                  "stripChars": ",;:.!?-"
                 }
                 """;
 

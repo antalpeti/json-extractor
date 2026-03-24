@@ -55,8 +55,8 @@ class UploadControllerTest {
         request.setFields(List.of("left", "right"));
         request.setTrimWhitespace(true);
         request.setLowercaseFirstLetter(true);
-        request.setRemoveTrailingDots(true);
-        request.setRemoveTrailingCommas(true);
+        request.setStripCharsEnabled(true);
+        request.setStripChars(",;:.!?-");
 
         ResponseEntity<byte[]> response = controller.extract(request, false);
 
