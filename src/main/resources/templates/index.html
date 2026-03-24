@@ -53,6 +53,36 @@
     </div>
 
     <!-- Extract Buttons -->
+    <div class="card mb-3">
+        <div class="card-body">
+            <h6 class="card-title">Extract options:</h6>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="optLowercaseFirstLetter">
+                <label class="form-check-label" for="optLowercaseFirstLetter">
+                    Lowercase first character of each extracted value
+                </label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="optTrimWhitespace">
+                <label class="form-check-label" for="optTrimWhitespace">
+                    Trim whitespace from both ends of each extracted value
+                </label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="optRemoveTrailingDots">
+                <label class="form-check-label" for="optRemoveTrailingDots">
+                    Remove trailing dots from each extracted value
+                </label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="optRemoveTrailingCommas">
+                <label class="form-check-label" for="optRemoveTrailingCommas">
+                    Remove trailing commas from each extracted value
+                </label>
+            </div>
+        </div>
+    </div>
+
     <div class="d-flex gap-2">
         <button class="btn btn-success" id="extractFileBtn" type="button" disabled>Extract to File</button>
         <button class="btn btn-info" id="extractClipboardBtn" type="button" disabled>Extract to Clipboard</button>
@@ -74,6 +104,10 @@
     const extractFileBtn = document.getElementById('extractFileBtn');
     const extractClipboardBtn = document.getElementById('extractClipboardBtn');
     const notification = document.getElementById('notification');
+    const optLowercaseFirstLetter = document.getElementById('optLowercaseFirstLetter');
+    const optTrimWhitespace = document.getElementById('optTrimWhitespace');
+    const optRemoveTrailingDots = document.getElementById('optRemoveTrailingDots');
+    const optRemoveTrailingCommas = document.getElementById('optRemoveTrailingCommas');
 
     let fileUploaded = false;
 
@@ -101,7 +135,7 @@
         try {
             uploadBtn.disabled = true;
             uploadBtn.textContent = 'Uploading...';
-            const response = await fetch('/upload', {
+            const response = await fetch('./upload', {
                 method: 'POST',
                 body: formData
             });
@@ -160,15 +194,24 @@
         extractClipboardBtn.disabled = !enabled;
     }
 
+    function getExtractionOptions() {
+        return {
+            lowercaseFirstLetter: optLowercaseFirstLetter.checked,
+            trimWhitespace: optTrimWhitespace.checked,
+            removeTrailingDots: optRemoveTrailingDots.checked,
+            removeTrailingCommas: optRemoveTrailingCommas.checked
+        };
+    }
+
     extractFileBtn.addEventListener('click', async () => {
         const fields = getSelectedFields();
         if (fields.length === 0 || !fileUploaded) return;
 
         try {
-            const response = await fetch('/extract?download=true', {
+            const response = await fetch('./extract?download=true', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fields })
+                body: JSON.stringify({ fields, ...getExtractionOptions() })
             });
 
             if (!response.ok) throw new Error('Extraction failed');
@@ -192,10 +235,10 @@
         if (fields.length === 0 || !fileUploaded) return;
 
         try {
-            const response = await fetch('/extract', {
+            const response = await fetch('./extract', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fields })
+                body: JSON.stringify({ fields, ...getExtractionOptions() })
             });
 
             if (!response.ok) throw new Error('Extraction failed');

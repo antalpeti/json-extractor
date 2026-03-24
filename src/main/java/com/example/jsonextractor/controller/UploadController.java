@@ -1,6 +1,7 @@
 package com.example.jsonextractor.controller;
 
 import com.example.jsonextractor.model.ExtractionRequest;
+import com.example.jsonextractor.service.ExtractionTransformService;
 import com.example.jsonextractor.service.JsonDataStore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,10 +26,15 @@ public class UploadController {
 
     private final JsonDataStore jsonDataStore;
     private final ObjectMapper objectMapper;
+    private final ExtractionTransformService extractionTransformService;
 
-    public UploadController(JsonDataStore jsonDataStore, ObjectMapper objectMapper) {
+    public UploadController(
+            JsonDataStore jsonDataStore,
+            ObjectMapper objectMapper,
+            ExtractionTransformService extractionTransformService) {
         this.jsonDataStore = jsonDataStore;
         this.objectMapper = objectMapper;
+        this.extractionTransformService = extractionTransformService;
     }
 
     @GetMapping("/")
@@ -77,7 +83,8 @@ public class UploadController {
             List<String> values = new ArrayList<>();
             for (String field : fields) {
                 JsonNode valueNode = record.get(field);
-                values.add(valueNode != null ? valueNode.asText() : "");
+                String rawValue = valueNode != null ? valueNode.asText() : "";
+                values.add(extractionTransformService.transform(rawValue, request));
             }
             sb.append(String.join("\t", values)).append("\n");
         }
