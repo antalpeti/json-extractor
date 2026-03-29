@@ -1,6 +1,7 @@
 package com.example.jsonextractor.controller;
 
 import com.example.jsonextractor.model.ExtractionRequest;
+import com.example.jsonextractor.model.FieldColumnEntry;
 import com.example.jsonextractor.service.ExtractionTransformService;
 import com.example.jsonextractor.service.JsonDataStore;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -19,9 +20,12 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Controller
 public class UploadController {
@@ -81,7 +85,7 @@ public class UploadController {
             @RequestParam(value = "download", defaultValue = "false") boolean download) {
 
         List<JsonNode> data = jsonDataStore.getData();
-        List<String> fields = request.getFields();
+        List<String> fields = resolveOrderedFields(request);
 
         StringBuilder sb = new StringBuilder();
         for (JsonNode record : data) {
@@ -107,6 +111,43 @@ public class UploadController {
                     .contentType(MediaType.TEXT_PLAIN)
                     .body(content);
         }
+    }
+
+    /**
+     * Determines the ordered field list from an {@link ExtractionRequest}.
+     *
+     * <p>New format: when {@code fieldColumns} is present and non-empty the
+     * entries are sorted by {@code columnIndex} (ascending; {@code null}
+     * sorts last). Entries with a {@code null} or blank field name are
+     * silently skipped. Duplicate column indices keep their original relative
+     * order because {@link List#sort} uses a stable algorithm.
+     *
+     * <p>Legacy format: falls back to the plain {@code fields} list unchanged.
+     * If both are absent/empty an empty list is returned so the output
+     * contains zero columns (valid: each row is just a bare newline).
+     */
+    private List<String> resolveOrderedFields(ExtractionRequest request) {
+        if (request == null) {
+            return List.of();
+        }
+
+        List<FieldColumnEntry> fieldColumns = request.getFieldColumns();
+        if (fieldColumns != null && !fieldColumns.isEmpty()) {
+            return fieldColumns.stream()
+                    .filter(e -> e != null && e.getField() != null && !e.getField().isBlank())
+                    .sorted(Comparator.comparingInt(
+                            e -> isValidColumnIndex(e.getColumnIndex()) ? e.getColumnIndex() : Integer.MAX_VALUE))
+                    .map(FieldColumnEntry::getField)
+                    .collect(Collectors.collectingAndThen(
+                            Collectors.toCollection(LinkedHashSet::new),
+                            ArrayList::new));
+        }
+        List<String> fields = request.getFields();
+        return fields != null ? fields : List.of();
+    }
+
+    private boolean isValidColumnIndex(Integer columnIndex) {
+        return columnIndex != null && columnIndex > 0;
     }
 
 }

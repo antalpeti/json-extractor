@@ -109,4 +109,68 @@ class UploadControllerTest extends UploadControllerTestHelper {
         assertNotNull(header);
         assertTrue(header.matches(CONTENT_DISPOSITION_PATTERN));
     }
+
+    @Test
+    @DisplayName("extract with fieldColumns having different columnIndex values produces output ordered by index ascending")
+    void testExtractWithFieldColumnsSortsOutputByColumnIndexAscending() {
+        controller.upload(createMultipartFile(THREE_FIELD_JSON));
+        final var request = createRequestWithFieldColumns(List.of(
+                createFieldColumnEntry(FIELD_CITY, 3),
+                createFieldColumnEntry(FIELD_NAME, 1),
+                createFieldColumnEntry(FIELD_AGE, 2)
+        ));
+
+        final var response = controller.extract(request, false);
+
+        assertNotNull(response.getBody());
+        assertEquals(EXPECTED_FIELD_COLUMNS_ORDERED_BODY, new String(response.getBody(), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    @DisplayName("extract with both fieldColumns and legacy fields present uses fieldColumns and ignores legacy fields")
+    void testExtractWithFieldColumnsAndLegacyFieldsPreferFieldColumns() {
+        controller.upload(createMultipartFile(THREE_FIELD_JSON));
+        final var request = createRequestWithFieldColumns(List.of(
+                createFieldColumnEntry(FIELD_AGE, 1),
+                createFieldColumnEntry(FIELD_NAME, 2)
+        ));
+        request.setFields(List.of(FIELD_CITY, FIELD_NAME));
+
+        final var response = controller.extract(request, false);
+
+        assertNotNull(response.getBody());
+        assertEquals(EXPECTED_FIELD_COLUMNS_PRECEDENCE_BODY, new String(response.getBody(), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    @DisplayName("extract with null columnIndex in fieldColumns places that entry deterministically last")
+    void testExtractWithNullColumnIndexPlacesEntryLast() {
+        controller.upload(createMultipartFile(THREE_FIELD_JSON));
+        final var request = createRequestWithFieldColumns(List.of(
+                createFieldColumnEntry(FIELD_NAME, null),
+                createFieldColumnEntry(FIELD_CITY, 1),
+                createFieldColumnEntry(FIELD_AGE, 2)
+        ));
+
+        final var response = controller.extract(request, false);
+
+        assertNotNull(response.getBody());
+        assertEquals(EXPECTED_NULL_INDEX_LAST_BODY, new String(response.getBody(), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    @DisplayName("extract with blank or null field name in fieldColumns skips those entries silently")
+    void testExtractWithBlankOrNullFieldNameInFieldColumnsSkipsEntry() {
+        controller.upload(createMultipartFile(THREE_FIELD_JSON));
+        final var request = createRequestWithFieldColumns(List.of(
+                createFieldColumnEntry("   ", 1),
+                createFieldColumnEntry(null, 2),
+                createFieldColumnEntry(FIELD_NAME, 3)
+        ));
+
+        final var response = controller.extract(request, false);
+
+        assertNotNull(response.getBody());
+        assertEquals(EXPECTED_BLANK_FIELD_SKIPPED_BODY, new String(response.getBody(), StandardCharsets.UTF_8));
+    }
 }

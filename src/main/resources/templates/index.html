@@ -26,6 +26,12 @@
             color: #6c757d;
             margin-left: 0.5rem;
         }
+        .field-selection-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
@@ -156,32 +162,145 @@
     function renderCheckboxes(fieldNames) {
         checkboxContainer.innerHTML = '';
         fieldNames.forEach(field => {
-            const div = document.createElement('div');
-            div.className = 'form-check';
+            const row = document.createElement('div');
+            row.className = 'field-selection-row';
+            row.dataset.field = field;
 
             const input = document.createElement('input');
-            input.className = 'form-check-input';
+            input.className = 'form-check-input flex-shrink-0';
             input.type = 'checkbox';
             input.id = 'cb_' + field;
             input.value = field;
-            input.addEventListener('change', updateExtractButtons);
+            input.addEventListener('change', () => syncColumnSelectors(field));
 
             const label = document.createElement('label');
-            label.className = 'form-check-label';
+            label.className = 'form-check-label flex-grow-1';
             label.htmlFor = 'cb_' + field;
             label.textContent = field;
 
-            div.appendChild(input);
-            div.appendChild(label);
-            checkboxContainer.appendChild(div);
+            const colLabel = document.createElement('span');
+            colLabel.className = 'text-muted small column-label';
+            colLabel.textContent = 'Column:';
+
+            const select = document.createElement('select');
+            select.className = 'form-select form-select-sm w-auto';
+            select.setAttribute('aria-label', 'Column position for ' + field);
+            select.disabled = true;
+            select.hidden = true;
+            colLabel.hidden = true;
+            select.addEventListener('change', () => syncColumnSelectors(field));
+
+            row.appendChild(input);
+            row.appendChild(label);
+            row.appendChild(colLabel);
+            row.appendChild(select);
+            checkboxContainer.appendChild(row);
         });
 
         checkboxSection.style.display = 'block';
+        syncColumnSelectors();
+    }
+
+    function getFieldRows() {
+        return Array.from(checkboxContainer.querySelectorAll('.field-selection-row'));
+    }
+
+    function getSelectedFieldRows() {
+        return getFieldRows().filter(row => row.querySelector('input[type="checkbox"]').checked);
     }
 
     function getSelectedFields() {
-        return Array.from(checkboxContainer.querySelectorAll('input[type="checkbox"]:checked'))
-            .map(cb => cb.value);
+        return getSelectedFieldRows().map(row => row.dataset.field);
+    }
+
+    function buildColumnOptions(select, selectedCount, selectedOrder) {
+        select.innerHTML = '';
+        for (let i = 1; i <= selectedCount; i++) {
+            const option = document.createElement('option');
+            option.value = i;
+            option.textContent = i;
+            if (i === selectedOrder) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        }
+    }
+
+    function syncColumnSelectors(prioritizedField = null) {
+        const selectedRows = getSelectedFieldRows();
+        const selectedCount = selectedRows.length;
+        const assignmentOrder = prioritizedField
+            ? [
+                ...selectedRows.filter(row => row.dataset.field === prioritizedField),
+                ...selectedRows.filter(row => row.dataset.field !== prioritizedField)
+            ]
+            : selectedRows;
+        const assignedOrders = new Map();
+        const usedOrders = new Set();
+
+        assignmentOrder.forEach(row => {
+            const select = row.querySelector('select');
+            const requestedOrder = Number.parseInt(select.value, 10);
+            if (Number.isInteger(requestedOrder)
+                && requestedOrder >= 1
+                && requestedOrder <= selectedCount
+                && !usedOrders.has(requestedOrder)) {
+                assignedOrders.set(row.dataset.field, requestedOrder);
+                usedOrders.add(requestedOrder);
+            }
+        });
+
+        let nextOrder = 1;
+        selectedRows.forEach(row => {
+            if (assignedOrders.has(row.dataset.field)) {
+                return;
+            }
+            while (usedOrders.has(nextOrder)) {
+                nextOrder++;
+            }
+            assignedOrders.set(row.dataset.field, nextOrder);
+            usedOrders.add(nextOrder);
+        });
+
+        getFieldRows().forEach(row => {
+            const checkbox = row.querySelector('input[type="checkbox"]');
+            const select = row.querySelector('select');
+            const columnLabel = row.querySelector('.column-label');
+
+            if (!checkbox.checked || selectedCount === 0) {
+                select.disabled = true;
+                select.hidden = true;
+                columnLabel.hidden = true;
+                select.innerHTML = '';
+                return;
+            }
+
+            const selectedOrder = assignedOrders.get(row.dataset.field);
+            buildColumnOptions(select, selectedCount, selectedOrder);
+            select.disabled = false;
+            select.hidden = false;
+            columnLabel.hidden = false;
+        });
+
+        updateExtractButtons();
+    }
+
+    function getFieldColumnEntries() {
+        return getSelectedFieldRows()
+            .map(row => ({
+                field: row.dataset.field,
+                columnIndex: Number.parseInt(row.querySelector('select').value, 10)
+            }))
+            .sort((left, right) => left.columnIndex - right.columnIndex);
+    }
+
+    function createExtractionRequestPayload() {
+        const fieldColumns = getFieldColumnEntries();
+        return {
+            fields: fieldColumns.map(entry => entry.field),
+            fieldColumns,
+            ...getExtractionOptions()
+        };
     }
 
     function updateExtractButtons() {
@@ -201,14 +320,14 @@
     }
 
     extractFileBtn.addEventListener('click', async () => {
-        const fields = getSelectedFields();
-        if (fields.length === 0 || !fileUploaded) return;
+        const fieldColumns = getFieldColumnEntries();
+        if (fieldColumns.length === 0 || !fileUploaded) return;
 
         try {
             const response = await fetch('./extract?download=true', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fields, ...getExtractionOptions() })
+                body: JSON.stringify(createExtractionRequestPayload())
             });
 
             if (!response.ok) throw new Error('Extraction failed');
@@ -235,14 +354,14 @@
     });
 
     extractClipboardBtn.addEventListener('click', async () => {
-        const fields = getSelectedFields();
-        if (fields.length === 0 || !fileUploaded) return;
+        const fieldColumns = getFieldColumnEntries();
+        if (fieldColumns.length === 0 || !fileUploaded) return;
 
         try {
             const response = await fetch('./extract', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fields, ...getExtractionOptions() })
+                body: JSON.stringify(createExtractionRequestPayload())
             });
 
             if (!response.ok) throw new Error('Extraction failed');
